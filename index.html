@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>20 Questions Game</title>
+    <style>
+        /* Basic page setup and font */
+        body {
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden; /* Prevents scrollbars */
+        }
+
+        /* Main container for the game - now fills the screen */
+        #game-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: #0d0d0d;
+            max-width: 800px; /* Added max-width for better desktop view */
+            border-left: 1px solid #444;
+            border-right: 1px solid #444;
+            box-sizing: border-box;
+        }
+
+        /* Status bar for scores and turn info */
+        #status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-bottom: 1px solid #444;
+            background-color: #252525;
+            flex-shrink: 0; /* Prevents the status bar from shrinking */
+        }
+
+        .info {
+            width: 150px;
+        }
+        
+        #guesses-left {
+            text-align: left;
+        }
+        
+        #game-code-display {
+            font-family: inherit;
+            color: #4CAF50;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #turn-indicator {
+            text-align: center;
+            flex-grow: 1;
+            font-weight: bold;
+        }
+        
+        /* Blinking cursor effect for the active player */
+        .active-turn::after {
+            content: '_';
+            animation: blink 1s step-end infinite;
+            font-weight: normal;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+
+        /* The game board where questions and answers appear */
+        #game-board {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse; /* Newest messages at the bottom */
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 8px;
+            max-width: 75%;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .question-message {
+            background-color: #3a3a3a;
+            align-self: flex-start; /* Player 2 asks */
+        }
+
+        .answer-message {
+            background-color: #004d40; /* A dark teal for answers */
+            align-self: flex-end; /* Player 1 answers */
+            text-align: right;
+        }
+        
+        .system-message {
+            background-color: #4a4a4a;
+            color: #ccc;
+            align-self: center;
+            text-align: center;
+            font-style: italic;
+            font-size: 14px;
+        }
+
+        /* Input area for questions and answers */
+        #input-area {
+            display: flex;
+            flex-direction: column;
+            padding: 15px 20px;
+            border-top: 1px solid #444;
+            flex-shrink: 0;
+            background-color: #252525;
+        }
+        
+        #player2-controls, #player1-controls {
+            display: flex;
+            width: 100%;
+        }
+
+        #question-input {
+            flex-grow: 1;
+            background-color: #333;
+            border: 1px solid #555;
+            color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 16px;
+        }
+        
+        #question-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .btn {
+            background-color: #333;
+            color: #f0f0f0;
+            border: 1px solid #666;
+            padding: 10px 20px;
+            font-family: inherit;
+            font-size: 16px;
+            cursor: pointer;
+            margin-left: 10px;
+            border-radius: 5px;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        
+        .btn:hover:not(:disabled) {
+            background-color: #4CAF50;
+            border-color: #4CAF50;
+        }
+        
+        .btn:disabled {
+            cursor: not-allowed;
+            filter: brightness(0.5);
+        }
+        
+        #player1-controls {
+            justify-content: space-around;
+        }
+        
+        #player1-controls .btn {
+             margin: 0 5px;
+             flex-grow: 1;
+        }
+        
+        #guess-it-btn {
+            background-color: #b71c1c;
+            border-color: #d32f2f;
+        }
+        
+        #guess-it-btn:hover:not(:disabled) {
+            background-color: #f44336;
+            border-color: #f44336;
+        }
+
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-content {
+            background-color: #1e1e1e;
+            padding: 30px 40px;
+            border: 1px solid #555;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            border-radius: 10px;
+            position: relative; /* Needed for positioning the close button */
+        }
+
+        .modal-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 28px;
+            color: #aaa;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .modal-close-btn:hover {
+            color: #fff;
+        }
+
+        .modal-content h1 {
+            margin-top: 0;
+            font-size: 24px;
+            color: #f0f0f0;
+            letter-spacing: 2px;
+        }
+        
+        .modal-content p {
+            color: #aaa;
+            line-height: 1.6;
+        }
+        
+        .modal-input {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-top: 15px;
+            background-color: #333;
+            border: 1px solid #555;
+            color: #f0f0f0;
+            font-family: inherit;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 18px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+        
+        .modal-btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 25px;
+        }
+        
+        .modal-btn {
+            background-color: #4CAF50;
+            color: #f0f0f0;
+            border: 1px solid #666;
+            padding: 12px 25px;
+            font-family: inherit;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+            flex-grow: 1;
+        }
+        
+        .modal-btn:hover {
+            background-color: #5cb85c;
+            border-color: #5cb85c;
+        }
+        
+        #show-join-game-btn {
+            background-color: #3498db;
+        }
+        #show-join-game-btn:hover {
+            background-color: #5dade2;
+        }
+        
+        /* Hide element utility */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container" class="hidden">
+        <div id="status-bar">
+            <div id="guesses-left" class="info">Guesses: 20</div>
+            <div id="turn-indicator">Waiting for player...</div>
+            <div id="game-code-display" class="info" title="Click to copy Game Code"></div>
+        </div>
+        <div id="game-board">
+            </div>
+        <div id="input-area">
+            <div id="player2-controls" class="hidden">
+                <input type="text" id="question-input" placeholder="Ask a question..." disabled>
+                <button id="ask-btn" class="btn" disabled>Ask</button>
+            </div>
+            <div id="player1-controls" class="hidden">
+                <button class="btn answer-btn" data-answer="Yes">Yes</button>
+                <button class="btn answer-btn" data-answer="No">No</button>
+                <button class="btn answer-btn" data-answer="Maybe">Maybe</button>
+                <button id="guess-it-btn" class="btn">You Guessed It!</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="lobby-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h1>20 Questions</h1>
+            <p>Create a game and share the code with a friend, or join their game.</p>
+            <div class="modal-btn-group">
+                <button id="show-create-game-btn" class="modal-btn">Create Game</button>
+                <button id="show-join-game-btn" class="modal-btn">Join Game</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="create-game-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <span class="modal-close-btn">&times;</span>
+            <h1>Create Game</h1>
+            <p>Enter a secret word. Don't let your friend see it!</p>
+            <input type="password" id="secret-word-input" class="modal-input" placeholder="Your secret word...">
+            <button id="create-game-btn" class="modal-btn" style="margin-top:20px; width:100%;">Create Game</button>
+        </div>
+    </div>
+
+    <div id="join-game-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <span class="modal-close-btn">&times;</span>
+            <h1>Join Game</h1>
+            <p>Enter the 5-character code from your friend.</p>
+            <input type="text" id="join-code-input" class="modal-input" placeholder="ABC12" maxlength="5">
+            <button id="join-game-btn" class="modal-btn" style="margin-top:20px; width:100%;">Join Game</button>
+        </div>
+    </div>
+    
+    <div id="end-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h1 id="end-title">Game Over!</h1>
+            <p id="end-message"></p>
+            <button id="restart-game-btn" class="modal-btn">Back to Lobby</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- FIX: Dynamically set WebSocket protocol ---
+            // Use wss:// for secure (https://) connections, and ws:// for insecure (http://)
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const socket = new WebSocket(`${protocol}//${window.location.host}`);
+
+            // DOM Elements
+            const gameContainer = document.getElementById('game-container');
+            const lobbyModal = document.getElementById('lobby-modal');
+            const createGameModal = document.getElementById('create-game-modal');
+            const joinGameModal = document.getElementById('join-game-modal');
+            const endModal = document.getElementById('end-modal');
+            const modalCloseBtns = document.querySelectorAll('.modal-close-btn');
+
+            const showCreateGameBtn = document.getElementById('show-create-game-btn');
+            const showJoinGameBtn = document.getElementById('show-join-game-btn');
+            const createGameBtn = document.getElementById('create-game-btn');
+            const joinGameBtn = document.getElementById('join-game-btn');
+            const secretWordInput = document.getElementById('secret-word-input');
+            const joinCodeInput = document.getElementById('join-code-input');
+            
+            const guessesLeftEl = document.getElementById('guesses-left');
+            const turnIndicatorEl = document.getElementById('turn-indicator');
+            const gameCodeDisplay = document.getElementById('game-code-display');
+            const gameBoardEl = document.getElementById('game-board');
+            
+            const player1Controls = document.getElementById('player1-controls');
+            const player2Controls = document.getElementById('player2-controls');
+            const questionInput = document.getElementById('question-input');
+            const askBtn = document.getElementById('ask-btn');
+            const answerBtns = document.querySelectorAll('.answer-btn');
+            const guessItBtn = document.getElementById('guess-it-btn');
+            
+            const restartGameBtn = document.getElementById('restart-game-btn');
+
+            // Game State
+            let myPlayerNumber = 0;
+            let currentGameId = null;
+
+            // --- WebSocket Listeners ---
+            socket.onopen = () => {
+                console.log('Connected to server.');
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const { type, payload } = JSON.parse(event.data);
+
+                    switch (type) {
+                        case 'gameCreated':
+                            myPlayerNumber = 1;
+                            currentGameId = payload.gameId;
+                            switchToGameView(payload.gameId, payload.gameState);
+                            break;
+                        case 'gameUpdate':
+                            // If I'm joining, set my player number
+                            if (myPlayerNumber === 0) myPlayerNumber = 2;
+                            if (!currentGameId) currentGameId = joinCodeInput.value.trim().toUpperCase();
+                            switchToGameView(currentGameId, payload);
+                            updateUI(payload);
+                            break;
+                        case 'opponentDisconnected':
+                            showEndScreen(payload);
+                            break;
+                        case 'error':
+                            alert(`Error: ${payload.message}`);
+                            // If join fails, go back to lobby
+                            showLobby();
+                            break;
+                    }
+                } catch (error) {
+                    console.error("Failed to parse server message:", error);
+                }
+            };
+            
+            socket.onclose = () => {
+                console.log('Disconnected from server.');
+                if (!endModal.classList.contains('hidden')) return; // Don't show if game already ended
+                showEndScreen({
+                    winner: 0, // No winner
+                    message: 'Connection to the server has been lost.'
+                });
+            };
+
+            // --- UI Navigation ---
+            function showLobby() {
+                createGameModal.classList.add('hidden');
+                joinGameModal.classList.add('hidden');
+                lobbyModal.classList.remove('hidden');
+                // Clear inputs when going back
+                secretWordInput.value = '';
+                joinCodeInput.value = '';
+            }
+            
+            showCreateGameBtn.addEventListener('click', () => {
+                lobbyModal.classList.add('hidden');
+                createGameModal.classList.remove('hidden');
+            });
+
+            showJoinGameBtn.addEventListener('click', () => {
+                lobbyModal.classList.add('hidden');
+                joinGameModal.classList.remove('hidden');
+            });
+            
+            modalCloseBtns.forEach(btn => btn.addEventListener('click', showLobby));
+            
+            restartGameBtn.addEventListener('click', () => {
+                window.location.reload();
+            });
+
+            gameCodeDisplay.addEventListener('click', () => {
+                if (!currentGameId) return;
+                navigator.clipboard.writeText(currentGameId).then(() => {
+                    gameCodeDisplay.textContent = 'COPIED!';
+                    setTimeout(() => { gameCodeDisplay.textContent = currentGameId; }, 1500);
+                }).catch(err => {
+                    console.error('Could not copy text: ', err);
+                });
+            });
+
+            // --- Game Actions ---
+            createGameBtn.addEventListener('click', () => {
+                const word = secretWordInput.value.trim();
+                if (!word) {
+                    alert('Please enter a secret word.');
+                    return;
+                }
+                socket.send(JSON.stringify({
+                    type: 'createGame',
+                    payload: { secretWord: word }
+                }));
+            });
+
+            joinGameBtn.addEventListener('click', () => {
+                const gameId = joinCodeInput.value.trim().toUpperCase();
+                if (gameId.length !== 5) {
+                    alert('Please enter a valid 5-character game code.');
+                    return;
+                }
+                currentGameId = gameId;
+                socket.send(JSON.stringify({
+                    type: 'joinGame',
+                    payload: { gameId: gameId }
+                }));
+            });
+
+            function switchToGameView(gameId, gameState) {
+                createGameModal.classList.add('hidden');
+                joinGameModal.classList.add('hidden');
+                lobbyModal.classList.add('hidden');
+                gameContainer.classList.remove('hidden');
+                gameCodeDisplay.textContent = gameId;
+                updateUI(gameState);
+            }
+
+            function updateUI(gameData) {
+                if (!gameData) return;
+
+                guessesLeftEl.textContent = `Guesses: ${gameData.guessesLeft}`;
+                gameBoardEl.innerHTML = '';
+                gameData.messages.forEach(msg => addMessageToBoard(msg.text, msg.type));
+
+                if (gameData.status === 'finished') {
+                    showEndScreen(gameData);
+                    return;
+                }
+
+                // Determine whose turn it is
+                const isMyTurn = myPlayerNumber === gameData.currentPlayer;
+                turnIndicatorEl.classList.toggle('active-turn', isMyTurn);
+
+                if (myPlayerNumber === 1) { // I am the Answerer (Player 1)
+                    player1Controls.classList.remove('hidden');
+                    player2Controls.classList.add('hidden');
+                    
+                    turnIndicatorEl.textContent = isMyTurn ? "Your Turn to Answer" : "Waiting for Question...";
+                    answerBtns.forEach(btn => btn.disabled = !isMyTurn);
+                    guessItBtn.disabled = !isMyTurn;
+                    
+                } else if (myPlayerNumber === 2) { // I am the Guesser (Player 2)
+                    player2Controls.classList.remove('hidden');
+                    player1Controls.classList.add('hidden');
+                    
+                    turnIndicatorEl.textContent = isMyTurn ? "Your Turn to Ask" : "Waiting for Answer...";
+                    questionInput.disabled = !isMyTurn;
+                    askBtn.disabled = !isMyTurn;
+                    if (isMyTurn) questionInput.focus();
+                } else { // Spectator or waiting to join
+                    turnIndicatorEl.textContent = gameData.status === 'waiting' ? 'Waiting for Player 2...' : 'Game in progress...';
+                    player1Controls.classList.add('hidden');
+                    player2Controls.classList.add('hidden');
+                }
+            }
+
+            function addMessageToBoard(text, type) {
+                const messageEl = document.createElement('div');
+                messageEl.classList.add('message', `${type}-message`);
+                messageEl.innerText = text;
+                gameBoardEl.prepend(messageEl); // Prepend to add to the top (since it's flex-direction: column-reverse)
+            }
+
+            function handleQuestion() {
+                const questionText = questionInput.value.trim();
+                if (!questionText) return;
+                socket.send(JSON.stringify({
+                    type: 'askQuestion',
+                    payload: { question: questionText }
+                }));
+                questionInput.value = '';
+            }
+            
+            askBtn.addEventListener('click', handleQuestion);
+            questionInput.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter' && !askBtn.disabled) handleQuestion();
+            });
+
+            answerBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    socket.send(JSON.stringify({
+                        type: 'sendAnswer',
+                        payload: { answer: btn.dataset.answer }
+                    }));
+                });
+            });
+
+            guessItBtn.addEventListener('click', () => {
+                socket.send(JSON.stringify({
+                    type: 'endGame',
+                    payload: { winner: 2 } // Player 2 wins by guessing correctly
+                }));
+            });
+
+            function showEndScreen(gameData) {
+                const { winner, secretWord, message } = gameData;
+                const endTitle = document.getElementById('end-title');
+                const endMessage = document.getElementById('end-message');
+                
+                // Use a generic message if one is passed (e.g., from disconnect)
+                if(message) {
+                    endTitle.textContent = 'Game Over';
+                    endMessage.textContent = message;
+                } else if (winner === myPlayerNumber) {
+                    endTitle.textContent = 'You Win!';
+                    endMessage.textContent = winner === 2 
+                        ? `You guessed the word! It was: "${secretWord}".`
+                        : `Your opponent ran out of guesses. The word was: "${secretWord}".`;
+                } else {
+                    endTitle.textContent = 'You Lose!';
+                     endMessage.textContent = winner === 2 
+                        ? `Your opponent guessed the word! It was: "${secretWord}".`
+                        : `You ran out of guesses. The word was: "${secretWord}".`;
+                }
+                
+                player1Controls.classList.add('hidden');
+                player2Controls.classList.add('hidden');
+                turnIndicatorEl.textContent = 'Game Over';
+                turnIndicatorEl.classList.remove('active-turn');
+                endModal.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
